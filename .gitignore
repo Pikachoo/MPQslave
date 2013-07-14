@@ -6,4 +6,6 @@
 [Dd]ebug*/
 [Rr]elease*/
 
+.settings/
+
 .git/
