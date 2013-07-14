@@ -6,6 +6,6 @@
 #include "src/unpacker.hpp"
 
 void parse(const std::string &path, const std::string &extension);
-void parse_blp_main(const std::string &path, const std::string &extension);
+void parse_blp(const std::string &path, const std::string &extension);
 
 #endif /* MAIN_HPP_ */

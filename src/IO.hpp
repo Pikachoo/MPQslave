@@ -7,14 +7,13 @@
 #include <boost/filesystem.hpp>	// -lboost_system -lboost_filesystem
 #include <boost/regex.hpp>		// -lboost_regex
 
-class IO
+namespace MPQs
 {
-	private:
-		std::vector<std::string> _file_list;
-
-	public:
-		std::vector<std::string> & scan_extensions(const std::string &scandir_path, const std::string &match);
-};
-
+	class IO
+	{
+		public:
+			static std::vector<std::string> scan_extensions(const std::string &scandir_path, const std::string &match);
+	};
+}
 
 #endif /* IO_HPP_ */

@@ -1,8 +1,8 @@
 #include "IO.hpp"
 
-std::vector<std::string> & IO::scan_extensions(const std::string &scandir_path, const std::string &match)
+std::vector<std::string> MPQs::IO::scan_extensions(const std::string &scandir_path, const std::string &match)
 {
-	_file_list.clear();
+	std::vector<std::string> file_list;
 
 	for (boost::filesystem::directory_iterator it(scandir_path), end_itr; it != end_itr; ++it)
 	{
@@ -12,8 +12,8 @@ std::vector<std::string> & IO::scan_extensions(const std::string &scandir_path, 
 		if (!boost::filesystem::is_regular_file(it->status())) continue;	// Not a file
 		if (extension != match) continue;									// Wrong match
 
-		_file_list.push_back(it->path().string());							// Match
+		file_list.push_back(it->path().string());							// Match
 	}
 
-	return _file_list;
+	return file_list;
 }

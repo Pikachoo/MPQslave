@@ -12,7 +12,6 @@
 #include <squish.h>		// -lsquish
 #include <FreeImage.h>	// -lfreeimage
 
-
 struct tBGRAPixel
 {
 		uint8_t b;
@@ -124,20 +123,46 @@ enum tBLPFormat
 	BLP_FORMAT_DXT5_ALPHA_8 = (BLP_ENCODING_DXT << 16) | (BLP_ALPHA_DEPTH_8 << 8) | BLP_ALPHA_ENCODING_DXT5,
 };
 
-int blp_parse(const std::string &blp_path);
+namespace MPQs
+{
+	class blp
+	{
+		private:
+			tBLPInfos process_file(FILE *pFile);
+			void release(tBLPInfos blpInfos);
 
-tBLPInfos blp_processFile(FILE* pFile);
-void blp_release(tBLPInfos blpInfos);
+			uint8_t version(tBLPInfos blpInfos);
+			tBLPFormat format(tBLPInfos blpInfos);
 
-uint8_t blp_version(tBLPInfos blpInfos);
-tBLPFormat blp_format(tBLPInfos blpInfos);
+			unsigned int width(tBLPInfos blpInfos, unsigned int mipLevel = 0);
+			unsigned int height(tBLPInfos blpInfos, unsigned int mipLevel = 0);
+			unsigned int nb_mip_levels(tBLPInfos blpInfos);
 
-unsigned int blp_width(tBLPInfos blpInfos, unsigned int mipLevel = 0);
-unsigned int blp_height(tBLPInfos blpInfos, unsigned int mipLevel = 0);
-unsigned int blp_nbMipLevels(tBLPInfos blpInfos);
+			tBGRAPixel* convert(FILE* pFile, tBLPInfos blpInfos, unsigned int mipLevel = 0);
 
-tBGRAPixel* blp_convert(FILE* pFile, tBLPInfos blpInfos, unsigned int mipLevel = 0);
+			std::string as_string(tBLPFormat format);
 
-std::string blp_asString(tBLPFormat format);
+		public:
+			int parse(const std::string &blp_path);
+	};
+
+	class blp1
+	{
+		public:
+			static tBGRAPixel* convert_jpeg(uint8_t* pSrc, tBLP1Infos* pInfos, uint32_t size);
+			static tBGRAPixel* convert_paletted_alpha(uint8_t* pSrc, tBLP1Infos* pInfos, unsigned int width, unsigned int height);
+			static tBGRAPixel* convert_paletted_no_alpha(uint8_t* pSrc, tBLP1Infos* pInfos, unsigned int width, unsigned int height);
+			static tBGRAPixel* convert_paletted_separated_alpha(uint8_t* pSrc, tBLP1Infos* pInfos, unsigned int width, unsigned int height, bool invertAlpha);
+	};
+
+	class blp2
+	{
+		public:
+			static tBGRAPixel* convert_paletted_no_alpha(uint8_t* pSrc, tBLP2Header* pHeader, unsigned int width, unsigned int height);
+			static tBGRAPixel* convert_paletted_alpha1(uint8_t* pSrc, tBLP2Header* pHeader, unsigned int width, unsigned int height);
+			static tBGRAPixel* convert_paletted_alpha8(uint8_t* pSrc, tBLP2Header* pHeader, unsigned int width, unsigned int height);
+			static tBGRAPixel* convert_dxt(uint8_t* pSrc, tBLP2Header* pHeader, unsigned int width, unsigned int height, int flags);
+	};
+}
 
 #endif /* BLP_HPP_ */

@@ -1,16 +1,6 @@
 #include "blp.hpp"
 
-// Forward declaration of "internal" functions
-tBGRAPixel* blp1_convert_jpeg(uint8_t* pSrc, tBLP1Infos* pInfos, uint32_t size);
-tBGRAPixel* blp1_convert_paletted_alpha(uint8_t* pSrc, tBLP1Infos* pInfos, unsigned int width, unsigned int height);
-tBGRAPixel* blp1_convert_paletted_no_alpha(uint8_t* pSrc, tBLP1Infos* pInfos, unsigned int width, unsigned int height);
-tBGRAPixel* blp1_convert_paletted_separated_alpha(uint8_t* pSrc, tBLP1Infos* pInfos, unsigned int width, unsigned int height, bool invertAlpha);
-tBGRAPixel* blp2_convert_paletted_no_alpha(uint8_t* pSrc, tBLP2Header* pHeader, unsigned int width, unsigned int height);
-tBGRAPixel* blp2_convert_paletted_alpha1(uint8_t* pSrc, tBLP2Header* pHeader, unsigned int width, unsigned int height);
-tBGRAPixel* blp2_convert_paletted_alpha8(uint8_t* pSrc, tBLP2Header* pHeader, unsigned int width, unsigned int height);
-tBGRAPixel* blp2_convert_dxt(uint8_t* pSrc, tBLP2Header* pHeader, unsigned int width, unsigned int height, int flags);
-
-int blp_parse(const std::string &blp_path)
+int MPQs::blp::parse(const std::string &blp_path)
 {
 	std::string strFormat = "png";
 	std::string strInFileName = blp_path;
@@ -28,7 +18,7 @@ int blp_parse(const std::string &blp_path)
 		return 1;
 	}
 
-	tBLPInfos blpInfos = blp_processFile(pFile);
+	tBLPInfos blpInfos = process_file(pFile);
 	if (!blpInfos)
 	{
 		std::cerr << "Failed to process the file '" << strInFileName << "'" << std::endl;
@@ -38,11 +28,11 @@ int blp_parse(const std::string &blp_path)
 
 	unsigned int mipLevel           = 0;
 
-	tBGRAPixel* pData = blp_convert(pFile, blpInfos, mipLevel);
+	tBGRAPixel* pData = convert(pFile, blpInfos, mipLevel);
 	if (pData)
 	{
-		unsigned int width = blp_width(blpInfos, mipLevel);
-		unsigned int height = blp_height(blpInfos, mipLevel);
+		unsigned int width = this->width(blpInfos, mipLevel);
+		unsigned int height = this->height(blpInfos, mipLevel);
 
 		FIBITMAP* pImage = FreeImage_Allocate(width, height, 32, 0x000000FF, 0x0000FF00, 0x00FF0000);
 		if (pImage)
@@ -82,12 +72,12 @@ int blp_parse(const std::string &blp_path)
 
 	fclose(pFile);
 
-	blp_release(blpInfos);
+	release(blpInfos);
 
 	return 0;
 }
 
-tBLPInfos blp_processFile(FILE* pFile)
+tBLPInfos MPQs::blp::process_file(FILE *pFile)
 {
 	tInternalBLPInfos* pBLPInfos = new tInternalBLPInfos();
 	char magic[4];
@@ -147,7 +137,7 @@ tBLPInfos blp_processFile(FILE* pFile)
 	return (tBLPInfos) pBLPInfos;
 }
 
-void blp_release(tBLPInfos blpInfos)
+void MPQs::blp::release(tBLPInfos blpInfos)
 {
 	tInternalBLPInfos* pBLPInfos = static_cast<tInternalBLPInfos*>(blpInfos);
 
@@ -157,14 +147,14 @@ void blp_release(tBLPInfos blpInfos)
 	delete pBLPInfos;
 }
 
-uint8_t blp_version(tBLPInfos blpInfos)
+uint8_t MPQs::blp::version(tBLPInfos blpInfos)
 {
 	tInternalBLPInfos* pBLPInfos = static_cast<tInternalBLPInfos*>(blpInfos);
 
 	return pBLPInfos->version;
 }
 
-tBLPFormat blp_format(tBLPInfos blpInfos)
+tBLPFormat MPQs::blp::format(tBLPInfos blpInfos)
 {
 	tInternalBLPInfos* pBLPInfos = static_cast<tInternalBLPInfos*>(blpInfos);
 
@@ -190,7 +180,7 @@ tBLPFormat blp_format(tBLPInfos blpInfos)
 	}
 }
 
-unsigned int blp_width(tBLPInfos blpInfos, unsigned int mipLevel)
+unsigned int MPQs::blp::width(tBLPInfos blpInfos, unsigned int mipLevel)
 {
 	tInternalBLPInfos* pBLPInfos = static_cast<tInternalBLPInfos*>(blpInfos);
 
@@ -212,7 +202,7 @@ unsigned int blp_width(tBLPInfos blpInfos, unsigned int mipLevel)
 	}
 }
 
-unsigned int blp_height(tBLPInfos blpInfos, unsigned int mipLevel)
+unsigned int MPQs::blp::height(tBLPInfos blpInfos, unsigned int mipLevel)
 {
 	tInternalBLPInfos* pBLPInfos = static_cast<tInternalBLPInfos*>(blpInfos);
 
@@ -234,7 +224,7 @@ unsigned int blp_height(tBLPInfos blpInfos, unsigned int mipLevel)
 	}
 }
 
-unsigned int blp_nbMipLevels(tBLPInfos blpInfos)
+unsigned int MPQs::blp::nb_mip_levels(tBLPInfos blpInfos)
 {
 	tInternalBLPInfos* pBLPInfos = static_cast<tInternalBLPInfos*>(blpInfos);
 
@@ -244,7 +234,7 @@ unsigned int blp_nbMipLevels(tBLPInfos blpInfos)
 		return pBLPInfos->blp1.infos.nbMipLevels;
 }
 
-tBGRAPixel* blp_convert(FILE* pFile, tBLPInfos blpInfos, unsigned int mipLevel)
+tBGRAPixel* MPQs::blp::convert(FILE* pFile, tBLPInfos blpInfos, unsigned int mipLevel)
 {
 	tInternalBLPInfos* pBLPInfos = static_cast<tInternalBLPInfos*>(blpInfos);
 
@@ -261,8 +251,8 @@ tBGRAPixel* blp_convert(FILE* pFile, tBLPInfos blpInfos, unsigned int mipLevel)
 	}
 
 	// Declarations
-	unsigned int width = blp_width(pBLPInfos, mipLevel);
-	unsigned int height = blp_height(pBLPInfos, mipLevel);
+	unsigned int width = this->width(pBLPInfos, mipLevel);
+	unsigned int height = this->height(pBLPInfos, mipLevel);
 	tBGRAPixel* pDst = 0;
 	uint8_t* pSrc = 0;
 	uint32_t offset;
@@ -285,51 +275,51 @@ tBGRAPixel* blp_convert(FILE* pFile, tBLPInfos blpInfos, unsigned int mipLevel)
 	fseek(pFile, offset, SEEK_SET);
 	fread((void*) pSrc, sizeof(uint8_t), size, pFile);
 
-	switch (blp_format(pBLPInfos))
+	switch (format(pBLPInfos))
 	{
 		case BLP_FORMAT_JPEG:
 			// if (pBLPInfos->version == 2)
 			//     pDst = blp2_convert_paletted_no_alpha(pSrc, &pBLPInfos->blp2, width, height);
 			// else
-			pDst = blp1_convert_jpeg(pSrc, &pBLPInfos->blp1.infos, size);
+			pDst = blp1::convert_jpeg(pSrc, &pBLPInfos->blp1.infos, size);
 			break;
 
 		case BLP_FORMAT_PALETTED_NO_ALPHA:
 			if (pBLPInfos->version == 2)
-				pDst = blp2_convert_paletted_no_alpha(pSrc, &pBLPInfos->blp2, width, height);
+				pDst = MPQs::blp2::convert_paletted_no_alpha(pSrc, &pBLPInfos->blp2, width, height);
 			else
-				pDst = blp1_convert_paletted_no_alpha(pSrc, &pBLPInfos->blp1.infos, width, height);
+				pDst = MPQs::blp1::convert_paletted_no_alpha(pSrc, &pBLPInfos->blp1.infos, width, height);
 			break;
 
 		case BLP_FORMAT_PALETTED_ALPHA_1:
-			pDst = blp2_convert_paletted_alpha1(pSrc, &pBLPInfos->blp2, width, height);
+			pDst = MPQs::blp2::convert_paletted_alpha1(pSrc, &pBLPInfos->blp2, width, height);
 			break;
 
 		case BLP_FORMAT_PALETTED_ALPHA_8:
 			if (pBLPInfos->version == 2)
 			{
-				pDst = blp2_convert_paletted_alpha8(pSrc, &pBLPInfos->blp2, width, height);
+				pDst = MPQs::blp2::convert_paletted_alpha8(pSrc, &pBLPInfos->blp2, width, height);
 			}
 			else
 			{
 				if (pBLPInfos->blp1.header.alphaEncoding == 5)
-					pDst = blp1_convert_paletted_alpha(pSrc, &pBLPInfos->blp1.infos, width, height);
+					pDst = MPQs::blp1::convert_paletted_alpha(pSrc, &pBLPInfos->blp1.infos, width, height);
 				else
-					pDst = blp1_convert_paletted_separated_alpha(pSrc, &pBLPInfos->blp1.infos, width, height,
+					pDst = MPQs::blp1::convert_paletted_separated_alpha(pSrc, &pBLPInfos->blp1.infos, width, height,
 							(pBLPInfos->blp1.header.alphaEncoding == 3));
 			}
 			break;
 
 		case BLP_FORMAT_DXT1_NO_ALPHA:
 		case BLP_FORMAT_DXT1_ALPHA_1:
-			pDst = blp2_convert_dxt(pSrc, &pBLPInfos->blp2, width, height, squish::kDxt1);
+			pDst = MPQs::blp2::convert_dxt(pSrc, &pBLPInfos->blp2, width, height, squish::kDxt1);
 			break;
 		case BLP_FORMAT_DXT3_ALPHA_4:
 		case BLP_FORMAT_DXT3_ALPHA_8:
-			pDst = blp2_convert_dxt(pSrc, &pBLPInfos->blp2, width, height, squish::kDxt3);
+			pDst = MPQs::blp2::convert_dxt(pSrc, &pBLPInfos->blp2, width, height, squish::kDxt3);
 			break;
 		case BLP_FORMAT_DXT5_ALPHA_8:
-			pDst = blp2_convert_dxt(pSrc, &pBLPInfos->blp2, width, height, squish::kDxt5);
+			pDst = MPQs::blp2::convert_dxt(pSrc, &pBLPInfos->blp2, width, height, squish::kDxt5);
 			break;
 		default:
 			break;
@@ -340,7 +330,7 @@ tBGRAPixel* blp_convert(FILE* pFile, tBLPInfos blpInfos, unsigned int mipLevel)
 	return pDst;
 }
 
-std::string blp_asString(tBLPFormat format)
+std::string MPQs::blp::as_string(tBLPFormat format)
 {
 	switch (format)
 	{
@@ -367,7 +357,7 @@ std::string blp_asString(tBLPFormat format)
 	}
 }
 
-tBGRAPixel* blp1_convert_jpeg(uint8_t* pSrc, tBLP1Infos* pInfos, uint32_t size)
+tBGRAPixel* MPQs::blp1::convert_jpeg(uint8_t* pSrc, tBLP1Infos* pInfos, uint32_t size)
 {
 	uint8_t* pSrcBuffer = new uint8_t[pInfos->jpeg.headerSize + size];
 
@@ -409,7 +399,7 @@ tBGRAPixel* blp1_convert_jpeg(uint8_t* pSrc, tBLP1Infos* pInfos, uint32_t size)
 	return pBuffer;
 }
 
-tBGRAPixel* blp1_convert_paletted_separated_alpha(uint8_t* pSrc, tBLP1Infos* pInfos, unsigned int width, unsigned int height,
+tBGRAPixel* MPQs::blp1::convert_paletted_separated_alpha(uint8_t* pSrc, tBLP1Infos* pInfos, unsigned int width, unsigned int height,
 		bool invertAlpha)
 {
 	tBGRAPixel* pBuffer = new tBGRAPixel[width * height];
@@ -438,7 +428,7 @@ tBGRAPixel* blp1_convert_paletted_separated_alpha(uint8_t* pSrc, tBLP1Infos* pIn
 	return pBuffer;
 }
 
-tBGRAPixel* blp1_convert_paletted_alpha(uint8_t* pSrc, tBLP1Infos* pInfos, unsigned int width, unsigned int height)
+tBGRAPixel* MPQs::blp1::convert_paletted_alpha(uint8_t* pSrc, tBLP1Infos* pInfos, unsigned int width, unsigned int height)
 {
 	tBGRAPixel* pBuffer = new tBGRAPixel[width * height];
 	tBGRAPixel* pDst = pBuffer;
@@ -460,7 +450,7 @@ tBGRAPixel* blp1_convert_paletted_alpha(uint8_t* pSrc, tBLP1Infos* pInfos, unsig
 	return pBuffer;
 }
 
-tBGRAPixel* blp1_convert_paletted_no_alpha(uint8_t* pSrc, tBLP1Infos* pInfos, unsigned int width, unsigned int height)
+tBGRAPixel* MPQs::blp1::convert_paletted_no_alpha(uint8_t* pSrc, tBLP1Infos* pInfos, unsigned int width, unsigned int height)
 {
 	tBGRAPixel* pBuffer = new tBGRAPixel[width * height];
 	tBGRAPixel* pDst = pBuffer;
@@ -482,7 +472,7 @@ tBGRAPixel* blp1_convert_paletted_no_alpha(uint8_t* pSrc, tBLP1Infos* pInfos, un
 	return pBuffer;
 }
 
-tBGRAPixel* blp2_convert_paletted_no_alpha(uint8_t* pSrc, tBLP2Header* pHeader, unsigned int width, unsigned int height)
+tBGRAPixel* MPQs::blp2::convert_paletted_no_alpha(uint8_t* pSrc, tBLP2Header* pHeader, unsigned int width, unsigned int height)
 {
 	tBGRAPixel* pBuffer = new tBGRAPixel[width * height];
 	tBGRAPixel* pDst = pBuffer;
@@ -502,7 +492,7 @@ tBGRAPixel* blp2_convert_paletted_no_alpha(uint8_t* pSrc, tBLP2Header* pHeader, 
 	return pBuffer;
 }
 
-tBGRAPixel* blp2_convert_paletted_alpha8(uint8_t* pSrc, tBLP2Header* pHeader, unsigned int width, unsigned int height)
+tBGRAPixel* MPQs::blp2::convert_paletted_alpha8(uint8_t* pSrc, tBLP2Header* pHeader, unsigned int width, unsigned int height)
 {
 	tBGRAPixel* pBuffer = new tBGRAPixel[width * height];
 	tBGRAPixel* pDst = pBuffer;
@@ -526,7 +516,7 @@ tBGRAPixel* blp2_convert_paletted_alpha8(uint8_t* pSrc, tBLP2Header* pHeader, un
 	return pBuffer;
 }
 
-tBGRAPixel* blp2_convert_paletted_alpha1(uint8_t* pSrc, tBLP2Header* pHeader, unsigned int width, unsigned int height)
+tBGRAPixel* MPQs::blp2::convert_paletted_alpha1(uint8_t* pSrc, tBLP2Header* pHeader, unsigned int width, unsigned int height)
 {
 	tBGRAPixel* pBuffer = new tBGRAPixel[width * height];
 	tBGRAPixel* pDst = pBuffer;
@@ -557,7 +547,7 @@ tBGRAPixel* blp2_convert_paletted_alpha1(uint8_t* pSrc, tBLP2Header* pHeader, un
 	return pBuffer;
 }
 
-tBGRAPixel* blp2_convert_dxt(uint8_t* pSrc, tBLP2Header* pHeader, unsigned int width, unsigned int height, int flags)
+tBGRAPixel* MPQs::blp2::convert_dxt(uint8_t* pSrc, tBLP2Header* pHeader, unsigned int width, unsigned int height, int flags)
 {
 	squish::u8* rgba = new squish::u8[width * height * 4];
 	tBGRAPixel* pBuffer = new tBGRAPixel[width * height];
