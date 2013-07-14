@@ -1,14 +1,15 @@
 #include "main.hpp"
 
 IO IO;
-MPQs::unpacker unpacker;
+
+MPQs::unpacker unpacker("/home/look/workspace/Maps/tmp", "", false);
 
 int main()
 {
 	parse("/home/look/workspace/Maps", ".w3x");
 	parse("/home/look/workspace/Maps", ".w3m");
 
-	unpacker.main2("/home/look/workspace/Maps/Download/Battleships Crossfire4.60.w3x", "/home/look/workspace/Maps/tmp");
+	unpacker.parse("/home/look/workspace/Maps/Download/Battleships Crossfire4.60.w3x", "/home/look/workspace/Maps/tmp");
 
 	parse_blp_main("/home/look/workspace/Maps/tmp", ".blp");
 }

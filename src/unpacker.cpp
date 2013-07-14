@@ -1,20 +1,27 @@
 #include "unpacker.hpp"
 
-MPQs::unpacker::unpacker()
+MPQs::unpacker::unpacker(const std::string dir_out,
+						 const std::string header_src,
+
+						 bool is_debug,
+						 bool is_compact,
+						 bool is_compress,
+						 bool required_W3MMD,
+						 bool required_search,
+						 bool dont_save)
 {
-	DEBUG = true;
-	workingDirectory = "/home/look/workspace/Maps/tmp";
-	mpqHeaderCopy = ""; //filename MPQ to copy header data from when creating MPQ
-	compactMPQ = false; //whether to compact when creating MPQ
-	compress = false; //whether to compress when creating MPQ
-	insertW3MMD = false; //whether to insert W3MMD code into JASS file
-	noWrite = false; //whether to suppress all file output while extracting
-	searchFiles = true; //whether to automatically search for files outside of list files while extracting
+	_working_dir = dir_out;				// working directory
+	_header_src = header_src;			// file_name MPQ to copy header data from when creating MPQ
+	_is_debug = is_debug;				// whether to debug when running
+	_is_compact = is_compact;			// whether to compact when creating MPQ
+	_is_compress = is_compress;			// whether to compress when creating MPQ
+	_required_W3MMD = required_W3MMD;	// whether to insert W3MMD code into JASS file
+	_required_search = required_search;	// whether to automatically search for files outside of list files while extracting
+	_dont_save = dont_save;				// whether to suppress all file output while extracting
 }
 
-
 //string replace all
-void MPQs::unpacker::replaceAll(std::string& str, const std::string& from, const std::string& to)
+void MPQs::unpacker::replace_all(std::string& str, const std::string& from, const std::string& to)
 {
 	size_t start_pos = 0;
 
@@ -45,15 +52,15 @@ inline std::string & MPQs::unpacker::trim(std::string &s)
 	return ltrim(rtrim(s));
 }
 
-bool MPQs::unpacker::invalidChar(char c)
+bool MPQs::unpacker::invalid_char(char c)
 {
 	return !(c >= 32 && c <= 126);
 }
 
-//removes bad characters from filename
-void MPQs::unpacker::stripUnicode(std::string &str)
+//removes bad characters from file_name
+void MPQs::unpacker::strip_unicode(std::string &str)
 {
-	str.erase(remove_if(str.begin(), str.end(), &MPQs::unpacker::invalidChar), str.end());
+	str.erase(remove_if(str.begin(), str.end(), &MPQs::unpacker::invalid_char), str.end());
 }
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -86,17 +93,17 @@ void MPQs::unpacker::rdirfiles(std::string path, std::vector<std::string>& files
 
 		do
 		{
-			if (strcmp(ffd.cFileName, ".") != 0 &&
-					strcmp(ffd.cFileName, "..") != 0)
+			if (strcmp(ffd.cfile_name, ".") != 0 &&
+					strcmp(ffd.cfile_name, "..") != 0)
 			{
 				if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
 				{
 					directories.push(path + "\\" );
-					files.push_back(string(ffd.cFileName) + "/");
+					files.push_back(string(ffd.cfile_name) + "/");
 				}
 				else
 				{
-					files.push_back(string(ffd.cFileName));
+					files.push_back(string(ffd.cfile_name));
 				}
 			}
 		}while (FindNextFile(hFind, &ffd) != 0);
@@ -195,12 +202,12 @@ void MPQs::unpacker::mkpath(const char *path)
 	delete[] copypath;
 }
 
-void MPQs::unpacker::getStringStream(char *array, int n, std::stringstream &ss, bool removeInvalid)
+void MPQs::unpacker::get_string_stream(char *array, int n, std::stringstream &ss, bool removeInvalid)
 {
 	std::string str(array, n);
 
 	//change all \r to \n, but don't add \r\r
-	replaceAll(str, "\r\n", "\r");
+	replace_all(str, "\r\n", "\r");
 	replace(str.begin(), str.end(), '\r', '\n');
 
 	if (removeInvalid)
@@ -221,135 +228,140 @@ void MPQs::unpacker::getStringStream(char *array, int n, std::stringstream &ss, 
 std::istream & MPQs::unpacker::gettrimline(std::istream &is, std::string &str)
 {
 	std::istream &ret = getline(is, str);
-	stripUnicode(str);
+	strip_unicode(str);
 	return ret;
 }
 
-void MPQs::unpacker::addLoadFile(std::string fileName)
+void MPQs::unpacker::add_load_file(std::string file_name)
 {
-	stripUnicode(fileName);
-	fileName = trim(fileName);
+	strip_unicode(file_name);
+	file_name = trim(file_name);
 
-	std::string lowerName = fileName;
-	transform(lowerName.begin(), lowerName.end(), lowerName.begin(), (int (*)(int))tolower);
+	std::string lower_name = file_name;
+	transform(lower_name.begin(), lower_name.end(), lower_name.begin(), (int (*)(int))tolower);
 
 	//make sure we don't already have this file
-if(	loadedFiles.find(lowerName) == loadedFiles.end())
+	if (_files_loaded.find(lower_name) == _files_loaded.end())
 	{
-		filesToLoad.push_back(fileName);
-		loadedFiles[lowerName] = true;
-		if(DEBUG) std::cout << "Adding file [" << fileName << "]" << std::endl;
+		_files_to_load.push_back(file_name);
+		_files_loaded[lower_name] = true;
+
+		if (_is_debug)
+			std::cout << "Adding file [" << file_name << "]" << std::endl;
 	}
 }
 
 //adds file but also autodetects other files based on it
-void MPQs::unpacker::addLoadFileAuto(std::string fileName)
+void MPQs::unpacker::add_load_file_auto(std::string file_name)
 {
-	if (fileName.length() > 300 || fileName.find('\"') != std::string::npos || fileName.find(';') != std::string::npos
-			|| fileName.find('\'') != std::string::npos || fileName.find('[') != std::string::npos
-			|| fileName.find(']') != std::string::npos)
+	if (file_name.length() > 300					||
+		file_name.find('\"') != std::string::npos	||
+		file_name.find(';')  != std::string::npos	||
+		file_name.find('\'') != std::string::npos	||
+		file_name.find('[')  != std::string::npos	||
+		file_name.find(']')  != std::string::npos)
 	{
 		return;
 	}
 
 	//replace two backslashes with one backslash
-	replaceAll(fileName, "\\\\", "\\");
-	replaceAll(fileName, "/", "\\");
+	replace_all(file_name, "\\\\", "\\");
+	replace_all(file_name, "/", "\\");
 
-	addLoadFile(fileName);
+	add_load_file(file_name);
 
 	//remove index
-	std::string fileNameWithoutExtension = fileName;
-	size_t index = fileName.rfind('.');
+	std::string file_name_without_extension = file_name;
+	size_t index = file_name.rfind('.');
 
 	if (index != std::string::npos)
 	{
-		fileNameWithoutExtension = fileName.substr(0, index);
+		file_name_without_extension = file_name.substr(0, index);
 	}
 
-	addLoadFile(fileNameWithoutExtension + ".blp");
-	addLoadFile(fileNameWithoutExtension + ".tga");
-	addLoadFile(fileNameWithoutExtension + ".mdx");
-	addLoadFile(fileNameWithoutExtension + ".mdl");
-	addLoadFile(fileNameWithoutExtension + ".mp3");
-	addLoadFile(fileNameWithoutExtension + ".wav");
+	add_load_file(file_name_without_extension + ".blp");
+	add_load_file(file_name_without_extension + ".tga");
+	add_load_file(file_name_without_extension + ".mdx");
+	add_load_file(file_name_without_extension + ".mdl");
+	add_load_file(file_name_without_extension + ".mp3");
+	add_load_file(file_name_without_extension + ".wav");
 
-	index = fileNameWithoutExtension.rfind('\\');
-	std::string baseName = fileNameWithoutExtension;
+	index = file_name_without_extension.rfind('\\');
+	std::string base_name = file_name_without_extension;
 
-	if (index != std::string::npos && fileName.length() >= index)
+	if (index != std::string::npos && file_name.length() >= index)
 	{
-		baseName = fileNameWithoutExtension.substr(index + 1);
+		base_name = file_name_without_extension.substr(index + 1);
 	}
 
-	addLoadFile("ReplaceableTextures\\CommandButtonsDisabled\\DIS" + baseName + ".blp");
-	addLoadFile("ReplaceableTextures\\CommandButtonsDisabled\\DIS" + baseName + ".tga");
-	addLoadFile("ReplaceableTextures\\CommandButtonsDisabled\\DISBTN" + baseName + ".blp");
-	addLoadFile("ReplaceableTextures\\CommandButtonsDisabled\\DISBTN" + baseName + ".tga");
+	add_load_file("ReplaceableTextures\\CommandButtonsDisabled\\DIS" + base_name + ".blp");
+	add_load_file("ReplaceableTextures\\CommandButtonsDisabled\\DIS" + base_name + ".tga");
+	add_load_file("ReplaceableTextures\\CommandButtonsDisabled\\DISBTN" + base_name + ".blp");
+	add_load_file("ReplaceableTextures\\CommandButtonsDisabled\\DISBTN" + base_name + ".tga");
 }
 
-void MPQs::unpacker::addDefaultLoadFiles()
+void MPQs::unpacker::add_load_file_default()
 {
-	addLoadFile("war3map.j");
-	addLoadFile("Scripts\\war3map.j");
-	addLoadFile("war3map.w3e");
-	addLoadFile("war3map.wpm");
-	addLoadFile("war3map.doo");
-	addLoadFile("war3map.w3u");
-	addLoadFile("war3map.w3b");
-	addLoadFile("war3map.w3d");
-	addLoadFile("war3map.w3a");
-	addLoadFile("war3map.w3q");
-	addLoadFile("war3map.w3u");
-	addLoadFile("war3map.w3t");
-	addLoadFile("war3map.w3d");
-	addLoadFile("war3map.w3h");
-	addLoadFile("(listfile)");
+	add_load_file("war3map.j");
+	add_load_file("Scripts\\war3map.j");
+	add_load_file("war3map.w3e");
+	add_load_file("war3map.wpm");
+	add_load_file("war3map.doo");
+	add_load_file("war3map.w3u");
+	add_load_file("war3map.w3b");
+	add_load_file("war3map.w3d");
+	add_load_file("war3map.w3a");
+	add_load_file("war3map.w3q");
+	add_load_file("war3map.w3u");
+	add_load_file("war3map.w3t");
+	add_load_file("war3map.w3d");
+	add_load_file("war3map.w3h");
+	add_load_file("(listfile)");
 }
 
-void MPQs::unpacker::processList(std::string fileName, char *array, int n)
+void MPQs::unpacker::list_process(std::string file_name, char *array, int n)
 {
-	size_t index = fileName.rfind('.');
+	size_t index = file_name.rfind('.');
 	std::string extension = "";
 
 	if (index != std::string::npos)
 	{
-		extension = fileName.substr(index + 1);
+		extension = file_name.substr(index + 1);
 	}
 
-	if (fileName == "(listfile)")
+	if (file_name == "(listfile)")
 	{
 		std::stringstream ss;
-		getStringStream(array, n, ss);
+		get_string_stream(array, n, ss);
 		std::string str;
 
 		while (getline(ss, str))
 		{
-			addLoadFile(str);
+			add_load_file(str);
 		}
 	}
 	else if (extension == "txt" || extension == "slk")
 	{
 		std::stringstream ss;
-		getStringStream(array, n, ss);
+		get_string_stream(array, n, ss);
 		std::string str;
 
 		while (getline(ss, str))
 		{
 			if (str.length() < 300)
 			{
-				addLoadFileAuto(str);
+				add_load_file_auto(str);
 
-				size_t firstQuote = str.rfind('\"');
+				size_t quote_first = str.rfind('\"');
 
-				if (firstQuote != std::string::npos)
+				if (quote_first != std::string::npos)
 				{
-					std::string sub = str.substr(0, firstQuote);
-					size_t secondQuote = sub.rfind('\"');
+					std::string sub = str.substr(0, quote_first);
+					size_t quote_second = sub.rfind('\"');
 
-					if (secondQuote != std::string::npos && secondQuote < sub.length())
+					if (quote_second != std::string::npos && quote_second < sub.length())
 					{
-						addLoadFileAuto(sub.substr(secondQuote + 1));
+						add_load_file_auto(sub.substr(quote_second + 1));
 					}
 				}
 
@@ -357,42 +369,49 @@ void MPQs::unpacker::processList(std::string fileName, char *array, int n)
 
 				if (equalIndex != std::string::npos && equalIndex < str.length())
 				{
-					addLoadFileAuto(str.substr(equalIndex + 1));
+					add_load_file_auto(str.substr(equalIndex + 1));
 				}
 			}
 		}
 	}
-	else if (extension == "w3u" || extension == "w3t" || extension == "w3b" || extension == "w3d" || extension == "w3a"
-			|| extension == "w3h" || extension == "w3q" || extension == "mdx" || extension == "w3i")
+	else if (extension == "w3u" ||
+			 extension == "w3t" ||
+			 extension == "w3b" ||
+			 extension == "w3d" ||
+			 extension == "w3a" ||
+			 extension == "w3h" ||
+			 extension == "w3q" ||
+			 extension == "mdx" ||
+			 extension == "w3i")
 	{
 		std::stringstream ss;
-		getStringStream(array, n, ss, true);
+		get_string_stream(array, n, ss, true);
 		std::string str;
 
 		while (getline(ss, str))
 		{
-			addLoadFileAuto(str);
+			add_load_file_auto(str);
 		}
 	}
 	else if (extension == "j")
 	{
 		std::stringstream ss;
-		getStringStream(array, n, ss);
+		get_string_stream(array, n, ss);
 		std::string str;
 
 		while (getline(ss, str))
 		{
-			size_t firstQuote;
+			size_t quote_first;
 
-			while ((firstQuote = str.rfind('\"')) != std::string::npos)
+			while ((quote_first = str.rfind('\"')) != std::string::npos)
 			{
-				str = str.substr(0, firstQuote);
-				size_t secondQuote = str.rfind('\"');
+				str = str.substr(0, quote_first);
+				size_t quote_second = str.rfind('\"');
 
-				if (secondQuote != std::string::npos && secondQuote < str.length())
+				if (quote_second != std::string::npos && quote_second < str.length())
 				{
-					addLoadFileAuto(str.substr(secondQuote + 1));
-					str = str.substr(0, secondQuote);
+					add_load_file_auto(str.substr(quote_second + 1));
+					str = str.substr(0, quote_second);
 				}
 				else
 				{
@@ -403,15 +422,18 @@ void MPQs::unpacker::processList(std::string fileName, char *array, int n)
 	}
 }
 
-bool MPQs::unpacker::loadListFile(std::string fileName)
+bool MPQs::unpacker::list_load(std::string file_name)
 {
-	std::cout << "Loading list file [" << fileName << "]" << std::endl;
+	if (_is_debug)
+		std::cout << "Loading list file [" << file_name << "]" << std::endl;
 
-	std::ifstream fin(fileName.c_str());
+	std::ifstream fin(file_name.c_str());
 
 	if (!fin.is_open())
 	{
-		std::cerr << "Warning: failed to open list file; only default files will be loaded" << std::endl;
+		if (_is_debug)
+			std::cerr << "Warning: failed to open list file; only default files will be loaded" << std::endl;
+
 		return false;
 	}
 
@@ -419,29 +441,31 @@ bool MPQs::unpacker::loadListFile(std::string fileName)
 
 	while (getline(fin, str))
 	{
-		addLoadFile(str);
+		add_load_file(str);
 	}
 
 	return true;
 }
 
-void MPQs::unpacker::writeW3MMD(std::ofstream &fout, char *array, int n)
+void MPQs::unpacker::write_W3MMD(std::ofstream &fout, char *array, int n)
 {
 	//ss is constructed from array, which contains the JASS script
 	std::stringstream ss;
-	getStringStream(array, n, ss);
+	get_string_stream(array, n, ss);
 
 	//open up input stream from w3mmd.txt that tells us how to insert W3MMD code
 	std::ifstream fin("w3mmd.txt");
 
 	if (!fin.is_open())
 	{
-		std::cerr << "Warning: failed to open w3mmd.txt for W3MMD insertion" << std::endl;
+		if (_is_debug)
+			std::cerr << "Warning: failed to open w3mmd.txt for W3MMD insertion" << std::endl;
+
 		return;
 	}
 
 	std::string str;
-	bool startOutput; //whether first line detect from w3mmd.txt was reached
+	bool start_output; //whether first line detect from w3mmd.txt was reached
 
 	//loop on the W3MMD file
 	while (gettrimline(fin, str))
@@ -468,7 +492,8 @@ void MPQs::unpacker::writeW3MMD(std::ofstream &fout, char *array, int n)
 			//otherwise write the last line
 			if (ss.eof())
 			{
-				std::cerr << "Warning: EOF reached before [" << lineDetect << "] line was reached" << std::endl;
+				if (_is_debug)
+					std::cerr << "Warning: EOF reached before [" << lineDetect << "] line was reached" << std::endl;
 			}
 			else
 			{
@@ -476,9 +501,9 @@ void MPQs::unpacker::writeW3MMD(std::ofstream &fout, char *array, int n)
 			}
 
 			//now continue reading W3MMD from loop
-			startOutput = true;
+			start_output = true;
 		}
-		else if (startOutput)
+		else if (start_output)
 		{
 			fout << str << std::endl;
 		}
@@ -491,38 +516,37 @@ void MPQs::unpacker::writeW3MMD(std::ofstream &fout, char *array, int n)
 	}
 }
 
-void MPQs::unpacker::saveFile(std::string fileName, char *array, int n)
+void MPQs::unpacker::file_save(std::string file_name, char *array, int n)
 {
-	if (searchFiles)
+	if (_required_search)
 	{
 		//process the file to search for more files
-		processList(fileName, array, n);
+		list_process(file_name, array, n);
 	}
 
-	replace(fileName.begin(), fileName.end(), '\\', '/');
-	fileName = workingDirectory + fileName;
+	replace(file_name.begin(), file_name.end(), '\\', '/');
+	file_name = _working_dir + file_name;
 
 	//make directories if needed
-	std::string directoryName = fileName;
-	size_t index = fileName.rfind('/');
+	std::string dir_name = file_name;
+	size_t index = file_name.rfind('/');
 
 	if (index != std::string::npos)
 	{
-		directoryName = fileName.substr(0, index + 1);
+		dir_name = file_name.substr(0, index + 1);
 	}
 
-	mkpath(directoryName.c_str());
+	mkpath(dir_name.c_str());
 
-
-	//save the file, but only if noWrite is not enabled
-	if (!noWrite)
+	//save the file, but only if _dont_save is not enabled
+	if (!_dont_save)
 	{
-		std::ofstream fout(fileName.c_str());
+		std::ofstream fout(file_name.c_str());
 
 		//if JASS, insert W3MMD if requested
-		if (insertW3MMD && fileName.length() >= 9 && fileName.substr(fileName.length() - 9) == "war3map.j")
+		if (_required_W3MMD && file_name.length() >= 9 && file_name.substr(file_name.length() - 9) == "war3map.j")
 		{
-			writeW3MMD(fout, array, n);
+			write_W3MMD(fout, array, n);
 		}
 		else
 		{
@@ -533,37 +557,44 @@ void MPQs::unpacker::saveFile(std::string fileName, char *array, int n)
 			}
 			else
 			{
-				std::cerr << "Warning: failed to save file [" << fileName << "]" << std::endl;
+				if (_is_debug)
+					std::cerr << "Warning: failed to save file [" << file_name << "]" << std::endl;
 			}
 		}
 	}
 }
 
-bool MPQs::unpacker::loadMPQ(std::string fileName)
+bool MPQs::unpacker::MPQ_load(std::string file_name)
 {
 	HANDLE MapMPQ;
 
-	if (SFileOpenArchive(fileName.c_str(), 0, MPQ_OPEN_FORCE_MPQ_V1 | STREAM_FLAG_READ_ONLY, &MapMPQ))
+	if (SFileOpenArchive(file_name.c_str(), 0, MPQ_OPEN_FORCE_MPQ_V1 | STREAM_FLAG_READ_ONLY, &MapMPQ))
 	{
-		std::cout << "Loading MPQ [" << fileName << "]" << std::endl;
+		if (_is_debug)
+			std::cout << "Loading MPQ [" << file_name << "]" << std::endl;
 	}
 	else
 	{
-		std::cerr << "Error: unable to load MPQ file [" << fileName << "]: " << GetLastError() << std::endl;
+		if (_is_debug)
+			std::cerr << "Error: unable to load MPQ file [" << file_name << "]: " << GetLastError() << std::endl;
+
 		return false;
 	}
 
-	for (unsigned int i = 0; i < filesToLoad.size(); i++)
+	for (unsigned int i = 0; i < _files_to_load.size(); i++)
 	{
-		std::string currentFile = filesToLoad[i];
-//		if (DEBUG)
-//			std::cout << "Loading file [" << currentFile << "]" << std::endl;
+		std::string file_current = _files_to_load[i];
+
+		if (_is_debug)
+			std::cout << "Loading file [" << file_current << "]" << std::endl;
+
 		HANDLE SubFile;
 
-		if (SFileOpenFileEx(MapMPQ, currentFile.c_str(), 0, &SubFile))
+		if (SFileOpenFileEx(MapMPQ, file_current.c_str(), 0, &SubFile))
 		{
-			if (DEBUG)
-				std::cout << "Found file [" << currentFile << "]" << std::endl;
+			if (_is_debug)
+				std::cout << "Found file [" << file_current << "]" << std::endl;
+
 			unsigned int FileLength = SFileGetFileSize(SubFile, NULL);
 
 			if (FileLength > 0 && FileLength != 0xFFFFFFFF)
@@ -574,7 +605,7 @@ bool MPQs::unpacker::loadMPQ(std::string fileName)
 				if (SFileReadFile(SubFile, SubFileData, FileLength, &BytesRead, NULL))
 				{
 					//since it succeeded, FileLength should equal BytesRead
-					saveFile(currentFile, SubFileData, BytesRead);
+					file_save(file_current, SubFileData, BytesRead);
 				}
 
 				delete[] SubFileData;
@@ -589,20 +620,23 @@ bool MPQs::unpacker::loadMPQ(std::string fileName)
 	return true;
 }
 
-bool MPQs::unpacker::makeMPQ(std::string fileName)
+bool MPQs::unpacker::MPQ_make(std::string file_name)
 {
 	std::vector<std::string> files;
-	rdirfiles(workingDirectory, files);
+	rdirfiles(_working_dir, files);
 
 	HANDLE MapMPQ;
 
-	if (SFileCreateArchive(fileName.c_str(), MPQ_CREATE_ARCHIVE_V1, files.size() + 15, &MapMPQ))
+	if (SFileCreateArchive(file_name.c_str(), MPQ_CREATE_ARCHIVE_V1, files.size() + 15, &MapMPQ))
 	{
-		std::cout << "Creating MPQ [" << fileName << "]" << std::endl;
+		if (_is_debug)
+			std::cout << "Creating MPQ [" << file_name << "]" << std::endl;
 	}
 	else
 	{
-		std::cerr << "Error: unable to create MPQ file [" << fileName << "]: " << GetLastError() << std::endl;
+		if (_is_debug)
+			std::cerr << "Error: unable to create MPQ file [" << file_name << "]: " << GetLastError() << std::endl;
+
 		return false;
 	}
 
@@ -611,7 +645,7 @@ bool MPQs::unpacker::makeMPQ(std::string fileName)
 	int dwCompression = 0;
 	int dwCompressionNext = 0;
 
-	if (compress)
+	if (_is_compress)
 	{
 		dwFlags = MPQ_FILE_COMPRESS;
 		dwCompression = MPQ_COMPRESSION_ZLIB;
@@ -620,60 +654,66 @@ bool MPQs::unpacker::makeMPQ(std::string fileName)
 
 	for (unsigned int i = 0; i < files.size(); i++)
 	{
-		std::string currentFile = files[i];
+		std::string file_current = files[i];
 
-		if (currentFile.empty())
+		if (file_current.empty())
 			continue;
 
-		if (currentFile[currentFile.length() - 1] == '/')
+		if (file_current[file_current.length() - 1] == '/')
 		{
-			if (DEBUG)
-				std::cout << "Ignoring directory [" << currentFile << "]" << std::endl;
+			if (_is_debug)
+				std::cout << "Ignoring directory [" << file_current << "]" << std::endl;
 		}
-		else if (currentFile == "(listfile)")
+		else if (file_current == "(listfile)")
 		{
-			std::cout << "Ignoring listfile [" << currentFile << "]" << std::endl;
+			if (_is_debug)
+				std::cout << "Ignoring listfile [" << file_current << "]" << std::endl;
 		}
 		else
 		{
-			if (DEBUG)
-				std::cout << "Adding file [" << currentFile << "]" << std::endl;
+			if (_is_debug)
+				std::cout << "Adding file [" << file_current << "]" << std::endl;
 
-			//change to backslash that MPQ uses for the filename in MPQ
-			std::string mpqFile = currentFile;
+			//change to backslash that MPQ uses for the file_name in MPQ
+			std::string mpqFile = file_current;
 			replace(mpqFile.begin(), mpqFile.end(), '/', '\\');
 
-			if (!SFileAddFileEx(MapMPQ, (workingDirectory + currentFile).c_str(), mpqFile.c_str(), dwFlags, dwCompression,
+			if (!SFileAddFileEx(MapMPQ, (_working_dir + file_current).c_str(), mpqFile.c_str(), dwFlags, dwCompression,
 					dwCompressionNext))
 			{
-				std::cerr << "Warning: failed to add " << currentFile << std::endl;
+				if (_is_debug)
+					std::cerr << "Warning: failed to add " << file_current << std::endl;
 			}
 		}
 	}
 
-	if (compactMPQ)
+	if (_is_compact)
 	{
 		if (!SFileCompactArchive(MapMPQ, NULL, 0))
 		{
-			std::cerr << "Warning: failed to compact archive: " << GetLastError() << std::endl;
+			if (_is_debug)
+				std::cerr << "Warning: failed to compact archive: " << GetLastError() << std::endl;
 		}
 	}
 
 	SFileCloseArchive(MapMPQ);
 
-	if (!mpqHeaderCopy.empty())
+	if (!_header_src.empty())
 	{
-		std::cout << "Prepending header from [" << mpqHeaderCopy << "] to [" << fileName << "]" << std::endl;
+		if (_is_debug)
+			std::cout << "Prepending header from [" << _header_src << "] to [" << file_name << "]" << std::endl;
 
 		//copy header to the mpq, use temporary file with _ prepended
-		std::string tempFileName = "_" + fileName;
+		std::string tempfile_name = "_" + file_name;
 
 		//read header first
-		std::ifstream fin(mpqHeaderCopy.c_str());
+		std::ifstream fin(_header_src.c_str());
 
 		if (!fin.is_open())
 		{
-			std::cerr << "Error: failed to copy header data: error while reading [" << mpqHeaderCopy << "]" << std::endl;
+			if (_is_debug)
+				std::cerr << "Error: failed to copy header data: error while reading [" << _header_src << "]" << std::endl;
+
 			return false;
 		}
 
@@ -682,16 +722,19 @@ bool MPQs::unpacker::makeMPQ(std::string fileName)
 
 		if (fin.fail())
 		{
-			std::cerr << "Warning: header data could not be completely read" << std::endl;
+			if (_is_debug)
+				std::cerr << "Warning: header data could not be completely read" << std::endl;
 		}
 
 		fin.close();
 
-		std::ofstream fout(tempFileName.c_str());
+		std::ofstream fout(tempfile_name.c_str());
 
 		if (!fout.is_open())
 		{
-			std::cerr << "Error: failed to copy header data: error while writing to [" << tempFileName << "]" << std::endl;
+			if (_is_debug)
+				std::cerr << "Error: failed to copy header data: error while writing to [" << tempfile_name << "]" << std::endl;
+
 			delete[] buffer;
 			return false;
 		}
@@ -699,11 +742,13 @@ bool MPQs::unpacker::makeMPQ(std::string fileName)
 		fout.write(buffer, 512);
 
 		//now add the actual MPQ data, use same buffer
-		std::ifstream finMPQ(fileName.c_str());
+		std::ifstream finMPQ(file_name.c_str());
 
 		if (!finMPQ.is_open())
 		{
-			std::cerr << "Error: failed to prepend header to MPQ: error while reading MPQ [" << fileName << "]" << std::endl;
+			if (_is_debug)
+				std::cerr << "Error: failed to prepend header to MPQ: error while reading MPQ [" << file_name << "]" << std::endl;
+
 			delete[] buffer;
 			return false;
 		}
@@ -718,9 +763,11 @@ bool MPQs::unpacker::makeMPQ(std::string fileName)
 		fout.close();
 		finMPQ.close();
 
-		if (rename(tempFileName.c_str(), fileName.c_str()) != 0)
+		if (rename(tempfile_name.c_str(), file_name.c_str()) != 0)
 		{
-			std::cerr << "Error while renaming [" << tempFileName << "] to [" << fileName << "]" << std::endl;
+			if (_is_debug)
+				std::cerr << "Error while renaming [" << tempfile_name << "] to [" << file_name << "]" << std::endl;
+
 			return false;
 		}
 	}
@@ -728,22 +775,18 @@ bool MPQs::unpacker::makeMPQ(std::string fileName)
 	return true;
 }
 
-int MPQs::unpacker::main2(const char *from, const char *to)
+void MPQs::unpacker::parse(const char *from, const char *to)
 {
-	addDefaultLoadFiles();
+	add_load_file_default();
 
-	workingDirectory = to;
+	_working_dir = to;
 
-	if (!workingDirectory.empty() && workingDirectory[workingDirectory.length() - 1] != '/')
+	if (!_working_dir.empty() && _working_dir[_working_dir.length() - 1] != '/')
 	{
-		workingDirectory = workingDirectory + "/";
+		_working_dir = _working_dir + "/";
 	}
 
-	loadListFile(from);
+	list_load(from);
 
-	std::string mpqfile = from;
-
-	loadMPQ(mpqfile);
-
-	return 0;
+	MPQ_load(from);
 }
