@@ -1,20 +1,16 @@
 #include "main.hpp"
 
 IO IO;
-MPQ MPQ;
+MPQs::unpacker unpacker;
 
 int main()
 {
 	parse("/home/look/workspace/Maps", ".w3x");
 	parse("/home/look/workspace/Maps", ".w3m");
 
-	MPQ.main2("/home/look/workspace/Maps/Download/Battleships Crossfire4.60.w3x", "/home/look/workspace/Maps/tmp");
+	unpacker.main2("/home/look/workspace/Maps/Download/Battleships Crossfire4.60.w3x", "/home/look/workspace/Maps/tmp");
 
 	parse_blp_main("/home/look/workspace/Maps/tmp", ".blp");
-
-
-
-	//MPQ.extract_file("/home/look/workspace/Maps/(2)Harrow.w3m");
 }
 
 void parse(const std::string &path, const std::string &extension)

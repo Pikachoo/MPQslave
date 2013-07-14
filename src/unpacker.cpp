@@ -1,23 +1,20 @@
-#include "MPQ.hpp"
+#include "unpacker.hpp"
 
-std::map<std::string, bool> loadedFiles;
-std::vector<std::string> filesToLoad;
+MPQs::unpacker::unpacker()
+{
+	DEBUG = true;
+	workingDirectory = "/home/look/workspace/Maps/tmp";
+	mpqHeaderCopy = ""; //filename MPQ to copy header data from when creating MPQ
+	compactMPQ = false; //whether to compact when creating MPQ
+	compress = false; //whether to compress when creating MPQ
+	insertW3MMD = false; //whether to insert W3MMD code into JASS file
+	noWrite = false; //whether to suppress all file output while extracting
+	searchFiles = true; //whether to automatically search for files outside of list files while extracting
+}
 
-// CONFIGURATION (done through command line)
-bool DEBUG = true;
-std::string workingDirectory = "/home/look/workspace/Maps/tmp";
-bool antivirus; //whether to do "antivirus" checks on MPQ while extracting
-std::string mpqHeaderCopy = ""; //filename MPQ to copy header data from when creating MPQ
-bool compactMPQ = false; //whether to compact when creating MPQ
-bool compress = false; //whether to compress when creating MPQ
-bool insertW3MMD = false; //whether to insert W3MMD code into JASS file
-bool noWrite = false; //whether to suppress all file output while extracting
-bool searchFiles = true; //whether to automatically search for files outside of list files while extracting
-
-typedef struct stat Stat;
 
 //string replace all
-void replaceAll(std::string& str, const std::string& from, const std::string& to)
+void MPQs::unpacker::replaceAll(std::string& str, const std::string& from, const std::string& to)
 {
 	size_t start_pos = 0;
 
@@ -29,38 +26,38 @@ void replaceAll(std::string& str, const std::string& from, const std::string& to
 }
 
 // trim from start
-static inline std::string &ltrim(std::string &s)
+inline std::string & MPQs::unpacker::ltrim(std::string &s)
 {
 	s.erase(s.begin(), std::find_if(s.begin(), s.end(), std::not1(std::ptr_fun<int, int>(std::isspace))));
 	return s;
 }
 
 // trim from end
-static inline std::string &rtrim(std::string &s)
+inline std::string & MPQs::unpacker::rtrim(std::string &s)
 {
 	s.erase(std::find_if(s.rbegin(), s.rend(), std::not1(std::ptr_fun<int, int>(std::isspace))).base(), s.end());
 	return s;
 }
 
 // trim from both ends
-static inline std::string &trim(std::string &s)
+inline std::string & MPQs::unpacker::trim(std::string &s)
 {
 	return ltrim(rtrim(s));
 }
 
-bool invalidChar(char c)
+bool MPQs::unpacker::invalidChar(char c)
 {
 	return !(c >= 32 && c <= 126);
 }
 
 //removes bad characters from filename
-void stripUnicode(std::string & str)
+void MPQs::unpacker::stripUnicode(std::string &str)
 {
-	str.erase(remove_if(str.begin(), str.end(), invalidChar), str.end());
+	str.erase(remove_if(str.begin(), str.end(), &MPQs::unpacker::invalidChar), str.end());
 }
 
 #if defined(_WIN32) || defined(_WIN64)
-void rdirfiles(string path, vector<string>& files)
+void MPQs::unpacker::rdirfiles(std::string path, std::vector<std::string>& files)
 {
 	if(!path.empty() && path[path.length() - 1] == '/')
 	{
@@ -69,8 +66,8 @@ void rdirfiles(string path, vector<string>& files)
 
 	HANDLE hFind = INVALID_HANDLE_VALUE;
 	WIN32_FIND_DATA ffd;
-	string spec;
-	stack<string> directories;
+	std::string spec;
+	stack<std::string> directories;
 
 	directories.push(path);
 	files.clear();
@@ -117,7 +114,7 @@ void rdirfiles(string path, vector<string>& files)
 #else
 //recursively retrieves files from directory
 //dir is the directory that we started searching, while prefix is the parent directories in recursion
-void rdirfiles(std::string dir, std::vector<std::string> &files, std::string prefix = "")
+void MPQs::unpacker::rdirfiles(std::string dir, std::vector<std::string> &files, std::string prefix)
 {
 	//add slash if needed
 	if (!dir.empty() && dir[dir.length() - 1] != '/')
@@ -153,7 +150,7 @@ void rdirfiles(std::string dir, std::vector<std::string> &files, std::string pre
 }
 #endif
 
-void do_mkdir(const char *path)
+void MPQs::unpacker::do_mkdir(const char *path)
 {
 #if defined(_WIN32) || defined(_WIN64)
 	if ((GetFileAttributes(path)) == INVALID_FILE_ATTRIBUTES)
@@ -176,7 +173,7 @@ void do_mkdir(const char *path)
  ** each directory in path exists, rather than optimistically creating
  ** the last element and working backwards.
  */
-void mkpath(const char *path)
+void MPQs::unpacker::mkpath(const char *path)
 {
 	char *pp;
 	char *sp;
@@ -198,7 +195,7 @@ void mkpath(const char *path)
 	delete[] copypath;
 }
 
-void getStringStream(char *array, int n, std::stringstream &ss, bool removeInvalid = false)
+void MPQs::unpacker::getStringStream(char *array, int n, std::stringstream &ss, bool removeInvalid)
 {
 	std::string str(array, n);
 
@@ -221,14 +218,14 @@ void getStringStream(char *array, int n, std::stringstream &ss, bool removeInval
 	ss.str(str);
 }
 
-std::istream &gettrimline(std::istream &is, std::string &str)
+std::istream & MPQs::unpacker::gettrimline(std::istream &is, std::string &str)
 {
 	std::istream &ret = getline(is, str);
 	stripUnicode(str);
 	return ret;
 }
 
-void addLoadFile(std::string fileName)
+void MPQs::unpacker::addLoadFile(std::string fileName)
 {
 	stripUnicode(fileName);
 	fileName = trim(fileName);
@@ -246,7 +243,7 @@ if(	loadedFiles.find(lowerName) == loadedFiles.end())
 }
 
 //adds file but also autodetects other files based on it
-void addLoadFileAuto(std::string fileName)
+void MPQs::unpacker::addLoadFileAuto(std::string fileName)
 {
 	if (fileName.length() > 300 || fileName.find('\"') != std::string::npos || fileName.find(';') != std::string::npos
 			|| fileName.find('\'') != std::string::npos || fileName.find('[') != std::string::npos
@@ -291,7 +288,7 @@ void addLoadFileAuto(std::string fileName)
 	addLoadFile("ReplaceableTextures\\CommandButtonsDisabled\\DISBTN" + baseName + ".tga");
 }
 
-void addDefaultLoadFiles()
+void MPQs::unpacker::addDefaultLoadFiles()
 {
 	addLoadFile("war3map.j");
 	addLoadFile("Scripts\\war3map.j");
@@ -310,7 +307,7 @@ void addDefaultLoadFiles()
 	addLoadFile("(listfile)");
 }
 
-void processList(std::string fileName, char *array, int n)
+void MPQs::unpacker::processList(std::string fileName, char *array, int n)
 {
 	size_t index = fileName.rfind('.');
 	std::string extension = "";
@@ -406,7 +403,7 @@ void processList(std::string fileName, char *array, int n)
 	}
 }
 
-bool loadListFile(std::string fileName)
+bool MPQs::unpacker::loadListFile(std::string fileName)
 {
 	std::cout << "Loading list file [" << fileName << "]" << std::endl;
 
@@ -428,7 +425,7 @@ bool loadListFile(std::string fileName)
 	return true;
 }
 
-void writeW3MMD(std::ofstream &fout, char *array, int n)
+void MPQs::unpacker::writeW3MMD(std::ofstream &fout, char *array, int n)
 {
 	//ss is constructed from array, which contains the JASS script
 	std::stringstream ss;
@@ -494,7 +491,7 @@ void writeW3MMD(std::ofstream &fout, char *array, int n)
 	}
 }
 
-void saveFile(std::string fileName, char *array, int n)
+void MPQs::unpacker::saveFile(std::string fileName, char *array, int n)
 {
 	if (searchFiles)
 	{
@@ -516,24 +513,6 @@ void saveFile(std::string fileName, char *array, int n)
 
 	mkpath(directoryName.c_str());
 
-	//run antivirus check here on JASS
-	//if we do in processList it won't be done if search is disabled
-	//if we do in insertW3MMD then write may be disabled and it won't work
-	if (antivirus && fileName.length() >= 9 && fileName.substr(fileName.length() - 9) == "war3map.j")
-	{
-		std::stringstream ss;
-		getStringStream(array, n, ss);
-		std::string str;
-
-		while (getline(ss, str))
-		{
-			//check for preload exploit in map
-			if (str.find("PreloadGenEnd") != std::string::npos)
-			{
-				std::cout << "Virus detected in map: " << str << std::endl;
-			}
-		}
-	}
 
 	//save the file, but only if noWrite is not enabled
 	if (!noWrite)
@@ -560,7 +539,7 @@ void saveFile(std::string fileName, char *array, int n)
 	}
 }
 
-bool loadMPQ(std::string fileName)
+bool MPQs::unpacker::loadMPQ(std::string fileName)
 {
 	HANDLE MapMPQ;
 
@@ -610,7 +589,7 @@ bool loadMPQ(std::string fileName)
 	return true;
 }
 
-bool makeMPQ(std::string fileName)
+bool MPQs::unpacker::makeMPQ(std::string fileName)
 {
 	std::vector<std::string> files;
 	rdirfiles(workingDirectory, files);
@@ -749,51 +728,7 @@ bool makeMPQ(std::string fileName)
 	return true;
 }
 
-bool MPQ::extract_file(const char *file_name)
-{
-	HANDLE MPQ = 0;            // Open archive handle
-	HANDLE SubFile = 0;
-
-	if (SFileOpenArchive(file_name, 0, 0, &MPQ))
-	{
-		std::cout << "Loading MPQ [" << file_name << "]" << std::endl;
-	}
-	else
-	{
-		std::cerr << "Error: unable to load MPQ file [" << file_name << "]: " << GetLastError() << std::endl;
-
-		return false;
-	}
-
-	std::cout << "Signature: " << SFileVerifyArchive(MPQ) << std::endl;
-
-	if (SFileOpenFileEx(MPQ, file_name, 0, &SubFile))
-	{
-
-		unsigned int FileLength = SFileGetFileSize(SubFile, 0);
-
-		if (FileLength > 0 && FileLength != 0xFFFFFFFF)
-		{
-			char *SubFileData = new char[FileLength];
-			DWORD BytesRead = 0;
-
-			if (SFileReadFile(SubFile, SubFileData, FileLength, &BytesRead, NULL))
-			{
-				//since it succeeded, FileLength should equal BytesRead
-				saveFile(file_name, SubFileData, BytesRead);
-			}
-
-			delete[] SubFileData;
-		}
-	}
-
-	SFileCloseFile(SubFile);
-	SFileCloseArchive(MPQ);
-
-	return 0;
-}
-
-int MPQ::main2(const char *from, const char *to)
+int MPQs::unpacker::main2(const char *from, const char *to)
 {
 	addDefaultLoadFiles();
 
