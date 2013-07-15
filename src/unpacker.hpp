@@ -76,4 +76,7 @@ namespace MPQs
 	};
 }
 #endif /* UNPACKER_HPP_ */
+<<<<<<< HEAD
 
+=======
+>>>>>>> 75237705365a6f7b39a0571b4c1e67a41ed82767
