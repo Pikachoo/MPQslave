@@ -1,0 +1,11 @@
+.project
+.metadata
+*.launch
+.cproject
+
+[Dd]ebug*/
+[Rr]elease*/
+
+.settings/
+
+.git/
