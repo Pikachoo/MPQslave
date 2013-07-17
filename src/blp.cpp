@@ -1,32 +1,41 @@
 #include "blp.hpp"
 
-int MPQs::blp::parse(const std::string &blp_path)
+MPQs::blp::blp(bool debug)
 {
-	std::string strFormat = "png";
-	std::string strInFileName = blp_path;
-	std::string strOutputFolder = "/home/look/workspace/Maps/tmp/";
-	std::string strOutFileName = strInFileName.substr(0, strInFileName.size() - 3) + strFormat;
+	_debug = debug;
+}
 
-	size_t offset = strOutFileName.find_last_of("/");
+int MPQs::blp::parse(const std::string &blp_file, const std::string &out_format)
+{
+	std::string out_dir = IO::get_parent_dir(blp_file);
+	std::string out_file = blp_file.substr(0, blp_file.size() - 3) + out_format;
+
+	size_t offset = out_file.find_last_of("/");
+
 	if (offset != std::string::npos)
-		strOutFileName = strOutFileName.substr(offset + 1);
+	{
+		out_file = out_file.substr(offset + 1);
+	}
 
-	FILE* pFile = fopen(strInFileName.c_str(), "rb");
+	FILE* pFile = fopen(blp_file.c_str(), "rb");
+
 	if (!pFile)
 	{
-		std::cerr << "Failed to open the file '" << strInFileName << "'" << std::endl;
+		if (_debug)
+				std::cerr << "Failed to open the file '" << blp_file << "'" << std::endl;
 		return 1;
 	}
 
 	tBLPInfos blpInfos = process_file(pFile);
 	if (!blpInfos)
 	{
-		std::cerr << "Failed to process the file '" << strInFileName << "'" << std::endl;
+		if (_debug)
+				std::cerr << "Failed to process the file '" << blp_file << "'" << std::endl;
 		fclose(pFile);
 		return 1;
 	}
 
-	unsigned int mipLevel           = 0;
+	unsigned int mipLevel = 0;
 
 	tBGRAPixel* pData = convert(pFile, blpInfos, mipLevel);
 	if (pData)
@@ -47,27 +56,31 @@ int MPQs::blp::parse(const std::string &blp_path)
 				pSrc -= width;
 			}
 
-			if (FreeImage_Save((strFormat == "tga" ? FIF_TARGA : FIF_PNG), pImage, (strOutputFolder + strOutFileName).c_str(), 0))
+			if (FreeImage_Save((out_format == "tga" ? FIF_TARGA : FIF_PNG), pImage, (out_dir + out_file).c_str(), 0))
 			{
-				std::cerr << strInFileName << ": OK" << std::endl;
+				if (_debug)
+				std::cerr << blp_file << ": OK" << std::endl;
 			}
 			else
 			{
-				std::cerr << strInFileName << ": Failed to save the image" << std::endl;
+				if (_debug)
+				std::cerr << blp_file << ": Failed to save the image" << std::endl;
 			}
 
 			FreeImage_Unload(pImage);
 		}
 		else
 		{
-			std::cerr << strInFileName << ": Failed to allocate memory" << std::endl;
+			if (_debug)
+				std::cerr << blp_file << ": Failed to allocate memory" << std::endl;
 		}
 
 		delete[] pData;
 	}
 	else
 	{
-		std::cerr << strInFileName << ": Unsupported format" << std::endl;
+		if (_debug)
+				std::cerr << blp_file << ": Unsupported format" << std::endl;
 	}
 
 	fclose(pFile);

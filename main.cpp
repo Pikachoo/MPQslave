@@ -5,12 +5,13 @@ MPQs::unpacker unpacker("/home/look/workspace/Maps/tmp", "", false);
 
 int main()
 {
-	parse("/home/look/workspace/Maps", ".w3x");
-	parse("/home/look/workspace/Maps", ".w3m");
+//	parse("/home/look/workspace/Maps", ".w3x");
+//	parse("/home/look/workspace/Maps", ".w3m");
+//
+//	unpacker.parse("/home/look/workspace/Maps/(8)ShamrockReef.w3x", "/home/look/workspace/Maps/tmp");
+//
+//	parse_blp("/home/look/workspace/Maps/tmp", ".blp");
 
-	unpacker.parse("/home/look/workspace/Maps/Download/Battleships Crossfire4.60.w3x", "/home/look/workspace/Maps/tmp");
-
-	parse_blp("/home/look/workspace/Maps/tmp", ".blp");
 }
 
 void parse(const std::string &path, const std::string &extension)

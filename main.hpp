@@ -3,6 +3,7 @@
 
 #include "src/blp.hpp"
 #include "src/IO.hpp"
+#include "src/regex.hpp"
 #include "src/unpacker.hpp"
 
 void parse(const std::string &path, const std::string &extension);

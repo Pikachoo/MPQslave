@@ -17,3 +17,10 @@ std::vector<std::string> MPQs::IO::scan_extensions(const std::string &scandir_pa
 
 	return file_list;
 }
+
+std::string MPQs::IO::get_parent_dir(const std::string &file_name)
+{
+	boost::filesystem::path path(file_name);
+
+	return path.parent_path().string() + "/";
+}

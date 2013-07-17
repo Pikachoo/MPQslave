@@ -13,6 +13,7 @@ namespace MPQs
 	{
 		public:
 			static std::vector<std::string> scan_extensions(const std::string &scandir_path, const std::string &match);
+			static std::string get_parent_dir(const std::string &file_name);
 	};
 }
 

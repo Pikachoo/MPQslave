@@ -12,6 +12,8 @@
 #include <squish.h>		// -lsquish
 #include <FreeImage.h>	// -lfreeimage
 
+#include "IO.hpp"
+
 struct tBGRAPixel
 {
 		uint8_t b;
@@ -128,6 +130,8 @@ namespace MPQs
 	class blp
 	{
 		private:
+			bool _debug;
+
 			tBLPInfos process_file(FILE *pFile);
 			void release(tBLPInfos blpInfos);
 
@@ -143,7 +147,9 @@ namespace MPQs
 			std::string as_string(tBLPFormat format);
 
 		public:
-			int parse(const std::string &blp_path);
+			blp(bool debug = true);
+
+			int parse(const std::string &blp_file, const std::string &out_format = "png");
 	};
 
 	class blp1
