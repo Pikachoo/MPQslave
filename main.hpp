@@ -6,6 +6,8 @@
 #include "src/regex.hpp"
 #include "src/unpacker.hpp"
 
+#include "src/w3i.hpp"
+
 void parse(const std::string &path, const std::string &extension);
 void parse_blp(const std::string &path, const std::string &extension);
 

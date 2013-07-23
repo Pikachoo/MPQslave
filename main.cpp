@@ -3,14 +3,22 @@
 MPQs::blp blp;
 MPQs::unpacker unpacker("/home/look/workspace/Maps/tmp", "", false);
 
+MPQs::w3i w3i;
+
 int main()
 {
 //	parse("/home/look/workspace/Maps", ".w3x");
 //	parse("/home/look/workspace/Maps", ".w3m");
+//	parse("/home/look/workspace/Maps", ".w3n");
 //
 //	unpacker.parse("/home/look/workspace/Maps/(8)ShamrockReef.w3x", "/home/look/workspace/Maps/tmp");
 //
 //	parse_blp("/home/look/workspace/Maps/tmp", ".blp");
+
+//	parse("/home/look/workspace/Maps/tmp", ".w3i");
+
+	w3i.read("/home/look/workspace/Maps/tmp/war3map.w3i");
+	w3i.read_it();
 
 }
 
